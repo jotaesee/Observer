@@ -26,7 +26,7 @@ class MinecraftServerManager:
         print(self.instances)
     
             
-    def create_server(self, ram_max = "-Xmx512M", mc_version = "1.8.1", server_type = "OFFICIAL", java_version = "C:\\Program Files\\BellSoft\\LibericaJDK-14\\bin\\java.exe", cwd=default_storage_path):
+    def create_server(self, ram_max = "-Xmx512M", mc_version = "1.15.2", server_type = "PAPER", java_version = "C:\\Program Files\\BellSoft\\LibericaJDK-14\\bin\\java.exe", cwd=default_storage_path):
         
         print("[OBS] [INFO] Creating new server folder...")
         
@@ -96,6 +96,9 @@ class MinecraftInstance:
         logger_thread = threading.Thread(target=self.logger)
         logger_thread.start()
         
+        input_thread = threading.Thread(target=self.input, daemon=True)
+        input_thread.start()
+        
         self.status = "ONLINE"
         print(f"[OBS] [STATUS] Server is now {self.status}")
         
@@ -114,10 +117,21 @@ class MinecraftInstance:
         if code != 0:
             self.status = "CRASHED"
             print(f"[OBS] [STATUS] Server is now {self.status}")
-            
-        
-    def run_cmd(self, cmd) :
+    
+    
+    def input(self) : 
         server = self.server
+        print("----------------- INPUT BY DEBUG CONSOLE IS NOW RUNNING --------------")
+        
+        while self.status != "OFFLINE":
+            input_str = input()
+            self.run_cmd(input_str)
+            
+            
+    def run_cmd(self, cmd : str) :
+        server = self.server
+        if not cmd.endswith("\n"):
+            cmd = cmd + "\n"
         server.stdin.write(cmd)
         server.stdin.flush()
         
@@ -136,4 +150,4 @@ manager = MinecraftServerManager()
 
 server = manager.create_server()
 server.start_server()
-print("##############", manager.instances)
+print("##############", manager.instances, "#################")
