@@ -2,6 +2,7 @@ import subprocess, threading, os, json
 from pathlib import Path
 import uuid
 from services import JarManager
+from exceptions import *
 
 default_storage_path = Path.home() / "Server Manager"
 
@@ -26,7 +27,7 @@ class MinecraftServerManager:
         print(self.instances)
     
             
-    def create_server(self, ram_max = "-Xmx512M", mc_version = "1.15.2", server_type = "PAPER", java_version = "C:\\Program Files\\BellSoft\\LibericaJDK-14\\bin\\java.exe", cwd=default_storage_path):
+    def create_server(self, ram_max = "-Xmx512M", mc_version = "1.16.22", server_type = "PAPER", java_version = "C:\\Program Files\\BellSoft\\LibericaJDK-14\\bin\\java.exe", cwd=default_storage_path):
         
         print("[OBS] [INFO] Creating new server folder...")
         
@@ -86,22 +87,32 @@ class MinecraftInstance:
     
         self.status = "STARTING"
         print(f"[OBS] [STATUS] Server is currently : {self.status}")
-        
-        if self.jar_file == "" :
-            provider = JarManager()
-            self.jar_file = provider.get_jar(self.mc_version, self.server_type)
-         
-        server = subprocess.Popen(args=[self.java_version, self.ram_max, '-jar', self.jar_file, 'nogui'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=self.cwd)
-        self.server = server 
-        logger_thread = threading.Thread(target=self.logger)
-        logger_thread.start()
-        
-        input_thread = threading.Thread(target=self.input, daemon=True)
-        input_thread.start()
-        
-        self.status = "ONLINE"
-        print(f"[OBS] [STATUS] Server is now {self.status}")
-        
+        try: 
+            if self.jar_file == "" :
+                provider = JarManager()
+                self.jar_file = provider.get_jar(self.mc_version, self.server_type)
+            
+            server = subprocess.Popen(args=[self.java_version, self.ram_max, '-jar', self.jar_file, 'nogui'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=self.cwd)
+            self.server = server 
+            logger_thread = threading.Thread(target=self.logger)
+            logger_thread.start()
+            
+            input_thread = threading.Thread(target=self.input, daemon=True)
+            input_thread.start()
+            
+            self.status = "ONLINE"
+            print(f"[OBS] [STATUS] Server is now {self.status}")
+        except (NetworkError, VersionNotFoundError, RetriesFailedError, ExternalApiError) as e:
+            self.status = "OFFLINE"
+            print(f"[OBS] [ERROR] Failed to start server: {e}")
+            print(f"[OBS] [STATUS] Server state reverted to: {self.status}")
+        except Exception as e:
+            print(f"[OBS] [ERROR] Failed to start server: {e}")
+            self.status = "CRASHED"
+            print(f"[OBS] [STATUS] Server is now {self.status}!")
+            
+            
+            
         
     def logger(self) : 
         server = self.server

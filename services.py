@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 
 MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 PAPER_BASE_URL = "https://api.papermc.io/v2/projects/paper"
+
 class VersionProvider:
     
         def __init__(self, provider_type: str):
@@ -45,29 +46,31 @@ class JarManager:
         url, hash, size = provider.get_url(mc_version)
         
         print(f"[OBS] [SERVICES/downloader] Initiating download.. ")
-        
-        
-        path = self.versions_storage_path / provider.type / mc_version
-        header = requests.head(url)
-        print(header)
-        response = requests.get(url)
-        
-        with open(path, "wb") as jarfile:
-            jarfile.write(response.content)
+
+        path : Path = self.versions_storage_path / provider.type / mc_version
         
         try:
+            with requests.get(url, timeout=30, stream=True) as response : 
+                response.raise_for_status()
+            
+                with open(path, "wb") as jarfile:
+                    for chunk in response.iter_content(8192):
+                        jarfile.write(chunk)
+                    
             if provider.verify_jar(path, hash, size):
                 print(f"[OBS] [SERVICES/downloader] Minecraft: {mc_version} has been successfully downloaded from {url} in {path}")
                 return path ## se verificó y se puede devolver el path del jar nuevo
-        except DownloadCorruptedError as e:
+        except (requests.RequestException, DownloadCorruptedError) as e:
             
-            if tries != 3:
+            if path.exists(): 
                 os.remove(path)
+            
+            if tries < 3:
                 print("[OBS] [SERVICES/downloader] Download failed or corrupted. Trying again")
                 self.download_jar(mc_version, provider, tries=tries+1)
             else:
                 print("[OBS] [SERVICES/downloader] Retries have failed, try loading the file manually")
-                raise RetriesFailedError("All 3 tries for downloading the jar have failed.") 
+                raise RetriesFailedError("All 3 attempts for downloading the jar have failed.") 
     
     def get_jar(self, mc_version, jar_type):
         
