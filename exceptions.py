@@ -21,3 +21,10 @@ class NetworkError(Exception):
 class ExternalApiError(Exception):
     """Exception for all external api's errors"""
     pass
+
+class InstanceNotFoundError(Exception):
+    """Exception raised when searching an instance by id and it can't be found."""
+    pass
+
+class PortInUseError(Exception):
+    """Exception raised when desired port for process is already being used. """

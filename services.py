@@ -2,11 +2,17 @@ import os, requests, json, hashlib
 from typing import Tuple
 from pathlib import Path
 from exceptions import *
-from abc import ABC, abstractmethod
+import socket
+from abc import abstractmethod
 
 
 MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 PAPER_BASE_URL = "https://api.papermc.io/v2/projects/paper"
+
+def is_port_free(port : int):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.1) 
+        return s.connect_ex(('127.0.0.1', port)) != 0
 
 class VersionProvider:
     
