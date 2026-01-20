@@ -3,10 +3,12 @@ from typing import Optional
 
 class CreateServerRequest(BaseModel):
     
-    ram_max : str
-    mc_version : str
+    ram_max : str = "-Xmx512M"
+    mc_version : str = "1.15.2"
     server_type : str = "OFFICIAL"
+    port : int = 25565
     java_version : FilePath
+    id : str
     
 class ServerCommand(BaseModel):
     cmd : str

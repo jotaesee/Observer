@@ -1,6 +1,6 @@
 import subprocess, threading, os, json
 from pathlib import Path
-import uuid
+import uuid, configparser
 from services import JarManager, is_port_free
 from exceptions import *
 from mcstatus import JavaServer
@@ -28,32 +28,36 @@ class MinecraftServerManager:
         print(self.instances)
     
             
-    def create_server(self, ram_max = "-Xmx512M", mc_version = "1.16.22", server_type = "PAPER", java_version = "C:\\Program Files\\BellSoft\\LibericaJDK-14\\bin\\java.exe", cwd=default_storage_path):
+    def create_server(self, ram_max, mc_version, server_type, port, java_version = "C:\\Program Files\\BellSoft\\LibericaJDK-14\\bin\\java.exe", id = None):
         
         print("[OBS] [INFO] Creating new server folder...")
         
-        new_pid = str(uuid.uuid4())
-        while new_pid in self.instances:
-            new_pid = str(uuid.uuid4())
-            
-        cwd = cwd / new_pid
+        if not id or id in self.instances:
+            id = str(uuid.uuid4())
+            while id in self.instances:
+                id = str(uuid.uuid4())
+        
+        cwd = default_storage_path     
+        cwd = cwd / id
         Path.mkdir(cwd, parents=True)
         
-        eulastring = "eula=true"
-        
         with open(cwd/"eula.txt", "w") as eula:
-            eula.write(eulastring)
+            eula.write("eula=true")
             
         print("[OBS] [INFO] EULA created and accepted.")
         
-        config_json = {"id" : new_pid, "ram_max": ram_max, "mc_version" : mc_version, "server_type" : server_type, "java_version" : java_version, "cwd":str(cwd) }
+        config_json = {"id" : id, "ram_max": ram_max, "mc_version" : mc_version, "server_type" : server_type, "java_version" : str(java_version), "cwd":str(cwd) }
         
         with open(cwd/"config.json", "w") as config:
             json.dump(config_json, config)
         
+        properties_lines = [f"port={port}\n", f"server-port={port}\n", "query-enabled=true\n", f"query.port={port}\n"]
+        
+        with open(cwd/"server.properties", "w") as properties:
+            properties.writelines(properties_lines)
         
         server = MinecraftInstance(cwd)
-        self.instances[new_pid] = server
+        self.instances[id] = server
         
         print("[OBS] [INFO] Server folder created, returning instance")
         return server
@@ -66,18 +70,19 @@ class MinecraftServerManager:
 
 class MinecraftInstance:
     def __init__(self, cwd : Path) -> None:
+        
             
         with open(cwd/"config.json", "r") as f:
-            config = json.load(f)
+            config : dict = json.load(f)
     
-        self.ram_max : str = config["ram_max"]
-        self.java_version = config["java_version"]
-        self.mc_version = config["mc_version"]
-        self.server_type = config["server_type"]
+        self.ram_max : str = config.get("ram_max", "-Xmx512M")
+        self.java_version = config.get("java_version", "java.exe")
+        self.mc_version = config.get("mc_version", "1.15.2")
+        self.server_type = config.get("server_type", "OFFICIAL")
         self.id = config["id"] 
-        self.cwd = config["cwd"]
+        self.cwd = Path(cwd)
         
-        self.server : subprocess.Popen
+        self.server : subprocess.Popen | None
         self.status = "OFFLINE"
         self.status_checker : JavaServer
         self.jar_file = ""
@@ -92,7 +97,9 @@ class MinecraftInstance:
                 provider = JarManager()
                 self.jar_file = provider.get_jar(self.mc_version, self.server_type)
             
-            port = self.get_port()
+            properties = self.get_properties()
+            port = properties.getint(configparser.UNNAMED_SECTION, "server-port")
+            
             if not is_port_free(port):
                 raise PortInUseError(f"Port number {port} is already being used. Try closing other instances or changing port configuration")
             
@@ -112,14 +119,20 @@ class MinecraftInstance:
             print(f"[OBS] [ERROR] Failed to start server: {e}")
             print(f"[OBS] [STATUS] Server state reverted to: {self.status}")
             self.server = None
+            raise
         except Exception as e:
             print(f"[OBS] [ERROR] Failed to start server: {e}")
             self.status = "CRASHED"
             print(f"[OBS] [STATUS] Server is now {self.status}!")
             self.server = None
+            raise
 
-    def get_port(self):
-        return 25565
+    def get_properties(self):
+        properties = self.cwd/"server.properties"
+        config = configparser.ConfigParser(allow_unnamed_section=True)
+        with open(properties, 'r') as f:
+            config.read(properties)
+        return config
     
     
     def online_check(self):
@@ -138,16 +151,18 @@ class MinecraftInstance:
                     
     def get_players(self):
         try:
-            status = self.status_checker.status()
-            players = status.players.sample
+            properties = self.get_properties()
+            query_port = properties.getint(configparser.UNNAMED_SECTION, "query.port")
+            query_server = JavaServer.lookup(f"127.0.0.1:{query_port}")
+            query = query_server.query()
+            players = query.players.list
             player_list = []
-            
-            if players != None:
+            if players:
                 for player in players:
-                    player_list.append(player.name) 
-            
+                    player_list.append(player) 
             return {"players":player_list}
         except Exception as e:
+            print(e)
             return {"players" : []}
                 
     def to_dict(self):

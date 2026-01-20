@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
 from schemas import *
@@ -31,7 +31,19 @@ async def online_players(websocket : WebSocket, server_id : str):
             if last_status != players:
                 last_status = players
                 await websocket.send_json(players)
-            await asyncio.sleep(5.0)
+            
+            if instance.status != "ONLINE" : 
+                await websocket.close(200, "server shutdown, closing connection.")
+                break
+            
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+            except asyncio.TimeoutError:
+                pass
+                
+        except WebSocketDisconnect:
+            print(f"Client disconnected from server {server_id}")
+            break
         except Exception as e:
             print(f"something broke the websocket : {e}")
             break
@@ -74,6 +86,8 @@ async def startServer(server_id : str):
         raise HTTPException(400, "Server Instance is already running.")
     
     try: instance.start_server()
+    except PortInUseError : 
+        raise HTTPException(403, "The server cannot be setup on this port, it is already being used. Try changing server.properties or stop other server")
     except Exception as e : 
         raise HTTPException(500, f"{e}")
     
@@ -81,7 +95,9 @@ async def startServer(server_id : str):
 
 @app.post("/servers/create")
 def create_server(request: CreateServerRequest):
-    try: new_server = serverManager.create_server(ram_max=request.ram_max, mc_version=request.mc_version, server_type=request.server_type, java_version = str(request.java_version) )
+    try: 
+        request_dict = request.model_dump()
+        new_server = serverManager.create_server(**request_dict)
     except Exception as e:
         raise HTTPException(500, f"{e}")
     return {"msg": f"New server instance for version {request.mc_version} {request.server_type} has been created.", "id": new_server.id}
