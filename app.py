@@ -27,14 +27,14 @@ async def online_players(websocket : WebSocket, server_id : str):
     
     while True:
         try:
-            players = await run_in_threadpool(instance.get_players)
-            if last_status != players:
-                last_status = players
-                await websocket.send_json(players)
             
             if instance.status != "ONLINE" : 
                 await websocket.close(200, "server shutdown, closing connection.")
                 break
+            
+            players = await run_in_threadpool(instance.get_players)
+            resources = await run_in_threadpool(instance.get_resource_stats)
+            await websocket.send_json({"players": players, "resources" : resources},)
             
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
@@ -46,6 +46,7 @@ async def online_players(websocket : WebSocket, server_id : str):
             break
         except Exception as e:
             print(f"something broke the websocket : {e}")
+            if websocket : await websocket.close("400", f"something broke the websocket : {e}")
             break
 
 @app.get("/servers")

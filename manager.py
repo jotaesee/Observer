@@ -1,6 +1,5 @@
-import subprocess, threading, os, json
+import subprocess, threading, os, json, uuid, configparser, psutil
 from pathlib import Path
-import uuid, configparser
 from services import JarManager, is_port_free
 from exceptions import *
 from mcstatus import JavaServer
@@ -51,7 +50,7 @@ class MinecraftServerManager:
         with open(cwd/"config.json", "w") as config:
             json.dump(config_json, config)
         
-        properties_lines = [f"port={port}\n", f"server-port={port}\n", "query-enabled=true\n", f"query.port={port}\n"]
+        properties_lines = [f"port={port}\n", f"server-port={port}\n", "enable-query=true\n", f"query.port={port+1}\n"]
         
         with open(cwd/"server.properties", "w") as properties:
             properties.writelines(properties_lines)
@@ -82,9 +81,9 @@ class MinecraftInstance:
         self.id = config["id"] 
         self.cwd = Path(cwd)
         
-        self.server : subprocess.Popen | None
+        self.server : subprocess.Popen 
+        self.process : psutil.Process
         self.status = "OFFLINE"
-        self.status_checker : JavaServer
         self.jar_file = ""
         pass
     
@@ -103,9 +102,9 @@ class MinecraftInstance:
             if not is_port_free(port):
                 raise PortInUseError(f"Port number {port} is already being used. Try closing other instances or changing port configuration")
             
-            self.status_checker = JavaServer.lookup(f"127.0.0.1:{port}")
             server = subprocess.Popen(args=[self.java_version, self.ram_max, '-jar', self.jar_file, 'nogui'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=self.cwd)
             self.server = server 
+            self.process = psutil.Process(self.server.pid)
             logger_thread = threading.Thread(target=self.logger)
             logger_thread.start()
             
@@ -164,6 +163,19 @@ class MinecraftInstance:
         except Exception as e:
             print(e)
             return {"players" : []}
+        
+    def get_resource_stats(self):
+        
+        if not self.process: return {"cpu": 0, "ram": 0}
+        try: 
+            with self.process.oneshot(): 
+                cpu = self.process.cpu_percent()
+                ram = self.process.memory_info().rss / (1024 * 1024)
+                ram = round(ram, 2)
+            return {"cpu_usage": cpu, "ram_mb": ram}
+        
+        except psutil.NoSuchProcess: 
+            return {"cpu": 0, "ram": 0}
                 
     def to_dict(self):
         server_info = {

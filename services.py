@@ -12,7 +12,7 @@ PAPER_BASE_URL = "https://api.papermc.io/v2/projects/paper"
 def is_port_free(port : int):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.1) 
-        return s.connect_ex((f'127.0.0.1', port)) != 0
+        return s.connect_ex(('127.0.0.1', port)) != 0
 
 class VersionProvider:
     
