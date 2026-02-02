@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
+from collections import deque
 from schemas import *
 import manager
 from exceptions import *
@@ -23,7 +24,6 @@ async def online_players(websocket : WebSocket, server_id : str):
     if not instance.server or instance.status != "ONLINE":
         await websocket.close(404, "Server Instance not online.")
     
-    last_status = None
     
     while True:
         try:
@@ -46,8 +46,58 @@ async def online_players(websocket : WebSocket, server_id : str):
             break
         except Exception as e:
             print(f"something broke the websocket : {e}")
-            if websocket : await websocket.close("400", f"something broke the websocket : {e}")
+            try:
+                await websocket.close(400, f"something broke the websocket : {e}")
+            except:
+                pass
             break
+        
+@app.websocket("/servers/{server_id}/console")
+async def real_time_console(websocket : WebSocket, server_id):
+    await websocket.accept()
+        
+    try:
+        instance = serverManager.get_instace_by_id(server_id)
+    except InstanceNotFoundError as e: 
+        await websocket.close(404, "Server Instance not found.")
+        
+    if not instance.server or instance.status != "ONLINE" or instance.status != "STARTING":
+        await websocket.close(404, "Server Instance not online.")
+    
+    log_number_read = 0
+    
+    while True:
+        try: 
+            data = instance.console_entries.copy()
+            
+            if not data or data[-1][0] <= log_number_read:
+               await asyncio.sleep(0.1)
+            else:
+                new_logs = []
+                for log_id, log_text in data : 
+                    if log_id > log_number_read :
+                        log_number_read = log_id
+                        new_logs.append(log_text)
+
+                for log in new_logs: 
+                    await websocket.send_text(log)
+                    
+                        
+            if instance.status != "ONLINE" : 
+                await websocket.close(200, "server shutdown, closing connection.")
+                break
+
+        except WebSocketDisconnect:
+            print(f"Client disconnected from server {server_id}")
+            break
+        except Exception as e:
+            print(f"something broke the websocket : {e}")
+            try:
+                await websocket.close(400, f"something broke the websocket : {e}")
+            except:
+                pass
+            break            
+
 
 @app.get("/servers")
 async def get_instances():

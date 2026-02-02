@@ -1,4 +1,5 @@
 import subprocess, threading, os, json, uuid, configparser, psutil
+from collections import deque
 from pathlib import Path
 from services import JarManager, is_port_free
 from exceptions import *
@@ -81,6 +82,7 @@ class MinecraftInstance:
         self.id = config["id"] 
         self.cwd = Path(cwd)
         
+        self.console_entries = deque(maxlen=200)
         self.server : subprocess.Popen 
         self.process : psutil.Process
         self.status = "OFFLINE"
@@ -193,12 +195,16 @@ class MinecraftInstance:
     def logger(self) : 
         server = self.server
         print("----------------- STARTING LOGGER THREAD --------------")
+        log_count = 1
         while self.status != "OFFLINE":
             log_line : str = server.stdout.readline()
             log_line = log_line.strip()
             if log_line == "":
                 break
             print(log_line)
+            self.console_entries.append((log_count, log_line))
+            log_count = log_count + 1
+            
         code = server.wait()
         print(f"[OBS] [INFO] Server has stopped with return code : {code}")
         if code != 0:
