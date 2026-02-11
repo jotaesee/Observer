@@ -161,7 +161,7 @@ class MinecraftInstance:
             if players:
                 for player in players:
                     player_list.append(player) 
-            return {"players":player_list}
+            return player_list
         except Exception as e:
             print(e)
             return {"players" : []}
