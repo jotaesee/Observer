@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
 from collections import deque
@@ -10,6 +11,15 @@ import asyncio
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # La dirección de tu frontend
+    allow_credentials=True,
+    allow_methods=["*"],  # Permitir GET, POST, PUT, DELETE, etc.
+    allow_headers=["*"],
+)
+
 serverManager = manager.MinecraftServerManager()
 
 
@@ -61,7 +71,7 @@ async def real_time_console(websocket : WebSocket, server_id):
     except InstanceNotFoundError as e: 
         await websocket.close(404, "Server Instance not found.")
         
-    if not instance.server or instance.status != "ONLINE" or instance.status != "STARTING":
+    if not instance.server or instance.status == "OFFLINE":
         await websocket.close(404, "Server Instance not online.")
     
     log_number_read = 0
