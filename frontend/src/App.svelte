@@ -1,6 +1,8 @@
 <script>
   import { onMount } from "svelte";
   import Sidebar from "./lib/sidebar.svelte";
+  import { appState } from "./stores.svelte";
+  import ServerList from "./lib/ServerList.svelte";
 
   let servers = $state([]);
 
@@ -16,6 +18,33 @@
 <Sidebar />
 
 <main class = "main-content">
+
+  {#if !appState.selected_server}
+  {#if appState.selected_section == "instances"}
+        <ServerList/>
+  {:else if appState.selected_section == "analytics"}
+    <p>analytics</p>
+  {:else if appState.selected_section == "settings"}
+    <p>settings</p>
+  {:else if appState.selected_section == "account"}
+    <p>account</p>
+
+  {/if}
+{:else}
+
+  {#if appState.selected_section == "dashboard"}
+    <p>dashboard</p>
+  {:else if appState.selected_section == "console"}
+    <p>analytics</p>
+  {:else if appState.selected_section == "players"}
+    <p>players</p>
+  {:else if appState.selected_section == "files"}
+    <p>files</p>
+  {:else if appState.selected_section == "settings"}
+    <p>settings</p>
+  {/if}
+
+{/if}
 </main>
 
 </div>

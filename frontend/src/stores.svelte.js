@@ -1,9 +1,10 @@
 export const appState = $state({
-  selected_server: "null",
-  selected_section: null,
+  selected_server: null,
+  selected_section: "instances",
 
   select_server(id) {
     this.selected_server = id;
+    this.selected_section = "dashboard";
   },
 
   select_section(section) {
@@ -12,5 +13,6 @@ export const appState = $state({
 
   go_home() {
     this.selected_server = null;
+    this.selected_section = "instances";
   },
 });

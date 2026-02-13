@@ -154,6 +154,23 @@ async def startServer(server_id : str):
     
     return {"msg":f"Server Instance with id : {server_id} is now running!"}
 
+@app.post("/servers/{server_id}/stop")
+async def startServer(server_id : str):
+    try:
+        instance = serverManager.get_instace_by_id(server_id)
+    except InstanceNotFoundError as e: 
+        raise HTTPException(404, "Server Instance not found")
+    
+    if instance.status == "OFFLINE":
+        print(instance.status)
+        raise HTTPException(400, "Server Instance is already offline.")
+    
+    try: instance.run_cmd("stop")
+    except Exception as e : 
+        raise HTTPException(500, f"{e}")
+    
+    return {"msg":f"Server Instance with id : {server_id} is now offline!"}
+
 @app.post("/servers/create")
 def create_server(request: CreateServerRequest):
     try: 

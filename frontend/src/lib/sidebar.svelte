@@ -37,16 +37,16 @@
 
   <nav class="sidebar-nav">
     {#if appState.selected_server}
-      <button class="create-button">
+      <button class="create-button" onclick={() => {appState.go_home()}}>
       <div class = "icon">
-        <svelte:component this={HouseIcon} size={20}></svelte:component>
+        <HouseIcon size={20}/>
       </div>
-        Home 
+        <p>Home</p> 
       </button>
     {:else}
       <button class="create-button">
       <div class = "icon">
-        <svelte:component this={Plus} size={20}></svelte:component>
+        <Plus size={20}/>
       </div>
         New Instance 
       </button>
