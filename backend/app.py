@@ -23,7 +23,7 @@ app.add_middleware(
 serverManager = manager.MinecraftServerManager()
 
 
-@app.websocket("/servers/{server_id}/players")
+@app.websocket("/servers/{server_id}/metrics")
 async def online_players(websocket : WebSocket, server_id : str):
     await websocket.accept()
     
@@ -31,20 +31,20 @@ async def online_players(websocket : WebSocket, server_id : str):
         instance = serverManager.get_instace_by_id(server_id)
     except InstanceNotFoundError as e: 
         await websocket.close(404, "Server Instance not found.")
-    if not instance.server or instance.status != "ONLINE":
-        await websocket.close(404, "Server Instance not online.")
+    if not instance.server or instance.status == "OFFLINE" or instance.status == "CRASHED":
+        await websocket.close(404, "Server Instance not running.")
     
     
     while True:
         try:
             
-            if instance.status != "ONLINE" : 
-                await websocket.close(200, "server shutdown, closing connection.")
+            if instance.status == "OFFLINE" or instance.status == "CRASHED": 
+                await websocket.close(1000, "server shutdown, closing connection.")
                 break
             
             players = await run_in_threadpool(instance.get_players)
             resources = await run_in_threadpool(instance.get_resource_stats)
-            await websocket.send_json({"players": players, "resources" : resources},)
+            await websocket.send_json({"players": players, "resources" : resources, "status" : instance.status},)
             
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
@@ -57,7 +57,7 @@ async def online_players(websocket : WebSocket, server_id : str):
         except Exception as e:
             print(f"something broke the websocket : {e}")
             try:
-                await websocket.close(400, f"something broke the websocket : {e}")
+                await websocket.close(1011, f"something broke the websocket : {e}")
             except:
                 pass
             break
@@ -155,17 +155,18 @@ async def startServer(server_id : str):
     return {"msg":f"Server Instance with id : {server_id} is now running!"}
 
 @app.post("/servers/{server_id}/stop")
-async def startServer(server_id : str):
+async def stopServer(server_id : str):
     try:
         instance = serverManager.get_instace_by_id(server_id)
     except InstanceNotFoundError as e: 
         raise HTTPException(404, "Server Instance not found")
     
-    if instance.status == "OFFLINE":
+    if instance.status == "OFFLINE" or instance.status == "CLOSING":
         print(instance.status)
         raise HTTPException(400, "Server Instance is already offline.")
     
-    try: instance.run_cmd("stop")
+    try: 
+        instance.stop()
     except Exception as e : 
         raise HTTPException(500, f"{e}")
     

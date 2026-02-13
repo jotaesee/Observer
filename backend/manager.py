@@ -113,7 +113,6 @@ class MinecraftInstance:
             input_thread = threading.Thread(target=self.input, daemon=True)
             input_thread.start()
             
-            self.status = "ONLINE"
             print(f"[OBS] [STATUS] Server is now {self.status}")
         except (NetworkError, VersionNotFoundError, RetriesFailedError, ExternalApiError) as e:
             self.status = "OFFLINE"
@@ -136,19 +135,6 @@ class MinecraftInstance:
         return config
     
     
-    def online_check(self):
-        server = self.server
-        if self.status == "ONLINE" and server:
-            code = server.poll()
-            if code is not None:
-                if code == 0:
-                    print("[OBS] [STATUS] Server has been shutdown successfully while running in background.")
-                    self.status = "OFFLINE"
-                else: 
-                    print("[OBS] [STATUS] Server has crashed while running in background.")
-                    self.status = "CRASHED"
-                print(f"[OBS] [STATUS] Server is now {self.status}!")
-                self.server = None
                     
     def get_players(self):
         try:
@@ -177,7 +163,9 @@ class MinecraftInstance:
             return {"cpu_usage": cpu, "ram_mb": ram}
         
         except psutil.NoSuchProcess: 
-            return {"cpu": 0, "ram": 0}
+            return {"cpu_usage": 0, "ram_mb": 0}
+        except Exception:
+            return {"cpu_usage": 0, "ram_mb": 0}
                 
     def to_dict(self):
         server_info = {
@@ -196,15 +184,19 @@ class MinecraftInstance:
         server = self.server
         print("----------------- STARTING LOGGER THREAD --------------")
         log_count = 1
-        while self.status != "OFFLINE":
+        while True:
             log_line : str = server.stdout.readline()
             log_line = log_line.strip()
             if log_line == "":
                 break
-            print(log_line)
-            self.console_entries.append((log_count, log_line))
-            log_count = log_count + 1
-            
+            if log_line:
+                print(log_line)
+                self.console_entries.append((log_count, log_line))
+                log_count = log_count + 1
+                if self.status == "STARTING" and "Done" in log_line and 'For help, type "help"' in log_line:
+                        self.status = "ONLINE"
+                        print(f"[OBS] [STATUS] Server is now {self.status}!")
+                
         code = server.wait()
         print(f"[OBS] [INFO] Server has stopped with return code : {code}")
         if code != 0:
@@ -216,7 +208,6 @@ class MinecraftInstance:
         self.server = None
     
     def input(self) : 
-        server = self.server
         print("----------------- INPUT BY DEBUG CONSOLE IS NOW RUNNING --------------")
         
         while self.status != "OFFLINE":
@@ -232,11 +223,10 @@ class MinecraftInstance:
         server.stdin.flush()
         
     def stop(self):
-        print("[OBS] [INFO] Shutting down server...")
-        self.server.stdin.write("stop")
+        self.status = "CLOSING"
+        print(f"[OBS] [INFO] Server state is now {self.status}...")
+        self.server.stdin.write("stop\n")
         self.server.stdin.flush()
-        self.status = "OFFLINE"
-        print(f"[OBS] [STATUS] Server is now {self.status}")
     
     def change_version(self, new_version) :######### hacer check si esta online, si esta offline cambiar y borrar, si esta online sol odescargar y "agendar"? el cambio de versoin
         self.mc_version = new_version
