@@ -41,10 +41,11 @@
 
 .card-grid {
     display: grid;
-    grid-template-columns: repeat(10, 350px);
-    grid-template-rows: repeat(2, 250px);
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    grid-template-rows: repeat(auto-fill, minmax(220px, 1fr));
     margin-top: 3vh;
     margin-left: 2vw;
+    margin-right: 2vw;
     grid-column-gap: 20px;
     grid-row-gap: 20px; 
 }

@@ -1,6 +1,7 @@
 <script>
     import { appState } from '../stores.svelte'; 
-    import { Users, Power, Settings } from 'lucide-svelte';
+    import { onMount } from 'svelte';
+    import { Users, Power, Settings} from 'lucide-svelte';
 
 
     let server = $props();
@@ -9,40 +10,49 @@
         cpu: 0,
         ram_mb: 0,
         players: 0,
-        online: server.current_status === "ONLINE"
+        online: server.current_status || "OFFLINE"
     });
 
     let ws = null;
 
-    $effect(() => {
-        if (metrics.online) {
-            connect_websocket();
+    onMount(() => {
+    if (metrics.online === "ONLINE") {
+        connect_websocket();
+    }
+    
+    return () => {
+        if (ws) {
+            ws.onclose = null;
+            ws.close();
         }
-        return () => {
-            if (ws) ws.close();
-        };
-    });
+    };
+});
 
     async function toggle_server() {
-        if (metrics.online) {
+        if (metrics.online == "ONLINE") {
 
             try {
                 const res = await fetch(`http://127.0.0.1:8000/servers/${server.id}/stop/`, {method:"POST"});
                 if (res.ok){
-                    metrics.online = false;
+                    metrics.online = "CLOSING";
+                } else {
+                    metrics.online == true
                 }
             } catch (error) {
                 console.error("Error starting server:", error);
+                metrics.online == true
             }
           
         } else {
             try {
                 const res = await fetch(`http://127.0.0.1:8000/servers/${server.id}/start`, {method:"POST"});
                 if (res.ok){
-                    metrics.online = true;
+                    metrics.online = "STARTING";
+                    connect_websocket();
                 }
             } catch (error) {
                 console.error("Error starting server:", error);
+                metrics.online = "OFFLINE"
             }
         
         }
@@ -51,20 +61,39 @@
  
 
     function connect_websocket() {
-        const protocol = window.location.protocol === "HTTPS" ? "wss" : "ws";
-        ws = new WebSocket(`${protocol}//127.0.0.1:8000/servers/${server.id}/players`);
+        const protocol = window.location.protocol === "HTTPS" ? "wss:" : "ws:";
+        ws = new WebSocket(`${protocol}//127.0.0.1:8000/servers/${server.id}/metrics`);
 
+        ws.onopen = () => {
+            metrics.online = "STARTING"
+        }
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            metrics.online = data.status
             metrics.cpu = data.resources.cpu_usage || 0;
             metrics.ram_mb = data.resources.ram_mb || 0;
             metrics.players = data.players ? data.players.length : 0;
+            if (metrics.online === "OFFLINE" || metrics.online === "CRASHED") {
+                console.log(`Server reported ${metrics.online}, closing WS from frontend.`);
+                ws.close(); 
+            }
         };
 
         ws.onclose = () => {
             console.log(`Connection lost for ${server.id}`);
-            metrics.online = false;
+            metrics.cpu = 0;
+            metrics.ram_mb = 0;
+            metrics.players = 0;
+            metrics.online = "OFFLINE";
         };
+
+        ws.onerror = () => {
+            console.log(`Connection lost for ${server.id}`);
+            metrics.cpu = 0;
+            metrics.ram_mb = 0;
+            metrics.players = 0;
+            metrics.online = "OFFLINE";
+        }
     }
 
     function getSegments(percentage) {
@@ -81,10 +110,22 @@
             <span class="version">{server.server_type} {server.mc_version} </span>
         </div>
         
-        <div class="status-badge" class:online={metrics.online}>
-            <div class="dot"></div>
-            {metrics.online ? 'ONLINE' : 'OFFLINE'}
-        </div>
+        {#if metrics.online == "OFFLINE"}
+            <div class="status-badge">
+                <div class="dot"></div>
+                {metrics.online}
+            </div>
+        {:else if metrics.online== "ONLINE"}
+            <div class="status-badge" class:online = {true}>
+                <div class="dot"></div>
+                {metrics.online}
+            </div>
+        {:else}
+            <div class="status-badge" class:loading={true}>
+                <div class="dot"></div>
+                {metrics.online}
+            </div>
+        {/if}
     </div>
 
     <div class="metrics-grid">
@@ -121,9 +162,20 @@
             <button class="manage-button" onclick={() => appState.select_server(server.id)}>
                 <Settings size={16} />
             </button>
-            <button id="power_button" class="power-button" onclick={() => toggle_server()}>
-                <Power size={16} />
-            </button>
+            {#if metrics.online == "OFFLINE"}
+                <button id="power_button" class="power-button" onclick={() => toggle_server()}>
+                    <Power size={16} />
+                </button>
+            {:else if metrics.online== "ONLINE"}
+                <button id="power_button" class="power-button" class:on={true} onclick={() => toggle_server()}>
+                    <Power size={16} />
+                </button>
+            {:else}
+                <button id="power_button" class="power-button" class:loading={true}>
+                    <Power size={16} />
+                </button>
+            {/if}
+
         </div>
     </div>
 </div>
@@ -141,7 +193,7 @@
     }
 
     .card:hover {
-        border-color: #eeeeee;
+        border-color: #eeeeee9c;
     }
 
     .card-header {
@@ -171,17 +223,18 @@
         font-size: 0.7rem;
         padding: 4px 8px;
         border-radius: 20px;
-        background: #1a1a1a;
-        color: #666;
-        border: 1px solid #333;
+        background: #ff00001a;
+        border: 1px solid #ff16165e;
+        color: #ff1616;
         font-weight: 600;
         font-family: 'JetBrains Mono', monospace;
+        transition: all 0.2s ease-in-out;
     }
 
     .status-badge.online {
-        background: rgba(0, 255, 102, 0.1);
+        background: #00ff661a;
         color: #00ff66;
-        border-color: rgba(0, 255, 102, 0.3);
+        border-color: #00ff664d;
     }
 
     .dot {
@@ -221,7 +274,7 @@
 
     .segment.active {
         background-color: #00ff66;
-        box-shadow: 0 0 4px rgba(0, 255, 102, 0.5);
+        box-shadow: 0 0 4px #00ff6680;
     }
 
     
@@ -249,9 +302,9 @@
     }
     
     .power-button {
-        background: #00ff66;
-        color: #000;
-        border: none;
+        background: #00ff661a;
+        color: #00ff66;
+        border: 1px solid #00ff664d;
         padding: 8px 16px;
         border-radius: 6px;
         cursor: pointer;
@@ -261,6 +314,35 @@
         transition: all 0.2s;
     }
 
+    .power-button:hover{
+        background: #00ff66;
+        color: #000;
+    }
+
+    .power-button.on:hover {
+        background: #ff371d;
+        color: #fff;
+    }
+
+    .power-button.on {
+        color : #ff1616;
+        background: #ff00001a;
+        border: 1px solid #ff16165e;
+        
+    }
+
+    .status-badge.loading {
+        background: #ffaa001a;
+        color: #ffaa00;
+        border-color: #ffaa004d;
+    }
+
+    .power-button.loading {
+        color: #ffaa00;
+        background: #ffaa001a;
+        border: 1px solid #ffaa004d;
+        cursor: not-allowed;
+    }
 
     .manage-button {
         background: #aaaaaa;

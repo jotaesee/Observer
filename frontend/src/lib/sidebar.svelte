@@ -87,7 +87,7 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@500;700;900');
   .sidebar-header{
-    margin-top: 2vh;
+    margin-top: 30px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -131,7 +131,7 @@
 
   button.create-button{
 
-    height: 5vh;
+    height: 60px;
     background: none;
     border: none;
     border-radius: 12px;
@@ -199,13 +199,12 @@
   }
 
   .sidebar {
-    width: 250px;
+    width: 300px;
     height: 100vh;
     background-color: #141414;
     display: flex;
     flex-direction: column;
     border: 1px solid #242424;
-    position: sticky;
   }
 
   .sidebar-footer{
@@ -214,7 +213,7 @@
   }
 
   button.menu-item {
-    height: 5vh;
+    height: 60px;
     background: none;
     border: none;
     border-radius: 12px;
