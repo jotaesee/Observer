@@ -1,7 +1,7 @@
 import subprocess, threading, os, json, uuid, configparser, psutil
 from collections import deque
 from pathlib import Path
-from services import JarManager, is_port_free
+from services import JarManager, JavaManager, is_port_free
 from exceptions import *
 from mcstatus import JavaServer
 
@@ -28,7 +28,7 @@ class MinecraftServerManager:
         print(self.instances)
     
             
-    def create_server(self, ram_max, mc_version, server_type, port, java_version = "C:\\Program Files\\BellSoft\\LibericaJDK-14\\bin\\java.exe", id = None):
+    def create_server(self, ram_max, mc_version, server_type, port, java_version = "java", id = None):
         
         print("[OBS] [INFO] Creating new server folder...")
         
@@ -76,7 +76,7 @@ class MinecraftInstance:
             config : dict = json.load(f)
     
         self.ram_max : str = config.get("ram_max", "-Xmx512M")
-        self.java_version = config.get("java_version", "java.exe")
+        self.java_version = config.get("java_version", "java")
         self.mc_version = config.get("mc_version", "1.15.2")
         self.server_type = config.get("server_type", "OFFICIAL")
         self.id = config["id"] 
@@ -97,6 +97,10 @@ class MinecraftInstance:
             if self.jar_file == "" :
                 provider = JarManager()
                 self.jar_file = provider.get_jar(self.mc_version, self.server_type)
+            
+            if self.java_version == "java" :
+                javaProvider = JavaManager()
+                self.java_version = javaProvider.get_java(self.mc_version)
             
             properties = self.get_properties()
             port = properties.getint(configparser.UNNAMED_SECTION, "server-port")

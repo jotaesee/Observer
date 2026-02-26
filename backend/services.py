@@ -1,4 +1,4 @@
-import os, requests, json, hashlib
+import os, requests, json, hashlib, platform, shutil, stat
 from typing import Tuple
 from pathlib import Path
 from exceptions import *
@@ -8,6 +8,7 @@ from abc import abstractmethod
 
 MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 PAPER_BASE_URL = "https://api.papermc.io/v2/projects/paper"
+BELL_JAVA_MANIFEST_URL = "https://api.bell-sw.com/v1/liberica/releases"
 
 def is_port_free(port : int):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -223,3 +224,198 @@ class PaperProvider(VersionProvider):
             raise ExternalApiError(f"HTTP Error: {e}")
         except requests.exceptions.RequestException as e:
             raise NetworkError(f"Unkown Error: {e}")
+    
+class JavaManager():
+    
+    def __init__(self) -> None:
+        self.java_storage_path = Path.home() / "Server Manager" / "runtimes"
+        
+        self.system = platform.system().lower()
+        if self.system not in ["windows", "linux"]:
+            raise SystemNotCompatible("Operative system is not compatible with automatic java download")
+        
+        self.architecture = platform.machine().lower()
+        if self.architecture in ["amd64", "x86_64"] :
+            self.architecture = "x86"
+        elif self.architecture in ["aarch64", "arm64"] : 
+            self.architecture = "arm"
+        else : raise ArchNotSupported("Architecture not supported for automatic java download.")
+        
+        self.java_exec = "java.exe" if self.system == "windows" else "java"
+        pass
+    
+    def get_java(self, mc_version):
+        
+        print(f"[OBS] [SERVICES/JarManager] Looking for java for {mc_version} and current system specs... ")
+        path = self.is_java_downloaded(mc_version)
+        if path:
+            print(f"[OBS] [SERVICES/JarManager] Java for {mc_version} has been found! Returning path to it... ")
+            return path
+        
+        print(f"[OBS] [SERVICES/JarManager] Java has not been found. Need to download.")
+        path = self.download_java(mc_version)
+        return path
+    
+        
+    def is_java_downloaded(self, mc_version):
+    
+        path = self.java_storage_path / "versions_cache.json"
+        if not path.exists() :
+            self.java_storage_path.mkdir(parents=True, exist_ok=True)
+            with open(path, "w") as new_cache:
+                template = {"versions":{}}
+                json.dump(template, new_cache)      
+        
+        with open(path, "r") as versions_file :
+            cache : dict = json.load(versions_file)
+            
+        java_version = cache["versions"].get(mc_version)
+            
+        if java_version == None :
+            java_version = self.which_java(mc_version)
+            cache["versions"][mc_version] = java_version
+            with open(path, "w") as versions_file:
+                json.dump(cache, versions_file)
+
+        java_folder_path = self.java_storage_path /f"{java_version}_{self.system}_{self.architecture}"
+        java_exec_paths = list(java_folder_path.rglob(self.java_exec))
+        if java_exec_paths :
+            return java_exec_paths[0]
+    
+        return False
+     
+    
+    def which_java(self, mc_version) :
+        try:
+            print("[OBS] [SERVICES/fetcher] Trying to get versions manifest to determine Java version.")
+            
+            manifest = requests.get(MANIFEST_URL, timeout=10)
+            manifest.raise_for_status()
+            manifest = manifest.json()
+                
+            for versions in manifest["versions"]:
+                if versions["id"] == mc_version:
+                    version_url = versions["url"]
+        
+            print(f"[OBS] [SERVICES/fetcher] Got {mc_version} url, looking for corresponding java version...")    
+            print(version_url)
+                
+            version_manifest = requests.get(version_url, timeout=10) 
+            version_manifest.raise_for_status()
+            version_manifest = version_manifest.json()
+            
+            java_version = version_manifest["javaVersion"]["majorVersion"]
+            print(f"[OBS] [SERVICES/fetcher] Java version for Minecraft : {mc_version}, should be : {java_version}") 
+            return java_version        
+        except requests.exceptions.Timeout:
+            raise NetworkError("Mojang's download site timed out.")
+        except requests.exceptions.ConnectionError:
+            raise NetworkError("Connection Error. Maybe no internet?")
+        except requests.exceptions.HTTPError as e:
+            print(f"Error HTTP: {e}")
+            raise ExternalApiError(f"HTTP Error: {e}")
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Unkown Error: {e}")
+        
+    def download_java(self, mc_version, tries=0) :
+        
+        with open(Path(self.java_storage_path / "versions_cache.json"), "r") as versions_file :
+            cache : dict = json.load(versions_file)
+        
+        java_version = cache["versions"].get(mc_version)
+        url, given_hash, given_size = self.get_url(java_version)
+        
+        zip_filename = f"{java_version}_{self.system}_{self.architecture}.zip"  
+        zip_path = self.java_storage_path / zip_filename 
+        
+        try:
+            print(f"[OBS] [SERVICES/downloader] Initiating Java download.. ")
+            res = requests.get(url,stream=True)
+            if res.ok:        
+                
+                with open(zip_path, 'wb') as zipfile:
+                    for chunk in res.iter_content(chunk_size=512*1024):
+                        zipfile.write(chunk)            
+                
+            if self.verify_zipfile(zip_path, given_hash, given_size):
+                
+                extract_folder = self.java_storage_path / f"{java_version}_{self.system}_{self.architecture}"
+                print(f"[OBS] [SERVICES/downloader] Java {java_version} .zip has been successfully downloaded at {extract_folder}! ")
+                return self.extract_java(zip_path, extract_folder, java_version)
+            
+            else: raise DownloadCorruptedError()
+    
+        except (requests.RequestException, DownloadCorruptedError) as e:
+        
+            if zip_path.exists(): 
+                zip_path.unlink()
+
+            if tries < 3:
+                print("[OBS] [SERVICES/downloader] Java Download failed or corrupted. Trying again")
+                self.download_java(mc_version, tries=tries+1)
+            else:
+                print("[OBS] [SERVICES/downloader] Retries have failed, try loading the file manually")
+                raise RetriesFailedError("All 3 attempts for downloading Java have failed.") 
+
+    def get_url(self, java_version) :
+        
+        available_versions_url = f"{BELL_JAVA_MANIFEST_URL}/?version-feature={java_version}&os={self.system}&arch={self.architecture}&bitness=64&bundle-type=jre&package-type=zip"
+        try:
+            res = requests.get(available_versions_url)
+            if res.ok :
+                download_url = res.json()[0].get("downloadUrl")
+                file_size = res.json()[0].get("size")
+                hash_sha1 = res.json()[0].get("sha1")
+                
+            return download_url, hash_sha1, file_size 
+            
+        except requests.exceptions.Timeout:
+            raise NetworkError("Bellsoft's download site timed out.")
+        except requests.exceptions.ConnectionError:
+            raise NetworkError("Connection Error. Maybe no internet?")
+        except requests.exceptions.HTTPError as e:
+            print(f"Error HTTP: {e}")
+            raise ExternalApiError(f"HTTP Error: {e}")
+        except requests.exceptions.RequestException as e:
+            raise NetworkError(f"Unkown Error: {e}")
+        
+    def verify_zipfile(self, java_path : Path, given_hash, given_size):
+        
+        print("[OBS] [SERVICES/verifier] Verifying Java .zip file...")
+        
+        real_size = java_path.stat().st_size
+        aux = hashlib.sha1()
+        
+        with open(java_path, "rb") as jarfile:
+            while chunk := jarfile.read(65536):
+                aux.update(chunk)
+                
+        calculated_hash = aux.hexdigest()
+        
+        print(f"[OBS] [SERVICES/verifier] Size should be {given_size} and the real size of the Java .zip file is {real_size}")
+        print(f"[OBS] [SERVICES/verifier] Hash-sha1 should be {given_hash} and the real hash-sha1 of the Java .zip file is {calculated_hash}")
+        
+        if given_size != real_size or calculated_hash != given_hash:
+            raise DownloadCorruptedError("Download is corrupted.")
+        
+        return True
+    
+    
+    def extract_java(self, zip_path: Path, extract_folder: Path, java_version):
+        
+        print(f"[OBS] [SERVICES/extractor] Now extracting {zip_path.name}...")
+        shutil.unpack_archive(zip_path, extract_folder)
+        zip_path.unlink()
+        
+        java_exec_paths = list(extract_folder.rglob(self.java_exec))
+        if not java_exec_paths:
+            raise Exception("No java executable found inside extracted file.")
+            
+        final_java_path = java_exec_paths[0]
+        
+        if self.system == "linux":
+            st = os.stat(final_java_path)
+            os.chmod(final_java_path, st.st_mode | stat.S_IEXEC)
+            
+        print(f"[OBS] [SERVICES/extractor] Java ready at {final_java_path}")
+        return final_java_path

@@ -28,3 +28,9 @@ class InstanceNotFoundError(Exception):
 
 class PortInUseError(Exception):
     """Exception raised when desired port for process is already being used. """
+    
+class SystemNotCompatible(Exception):
+    """Exception raised when Host's OS is not compatible with the program """
+    
+class ArchNotSupported(Exception):
+    """Exception raised when Host's CPU's arch is not compatible with the program """
