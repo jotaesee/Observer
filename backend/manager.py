@@ -12,6 +12,8 @@ class MinecraftServerManager:
     def __init__(self) -> None:
         print("new server manager created")
         self.instances : dict[str, MinecraftInstance] = {} 
+        if not default_storage_path.exists() :
+            Path.mkdir(default_storage_path, parents=True, exist_ok=True) 
         self.load_servers_on_disk()
        
     pass
@@ -19,9 +21,14 @@ class MinecraftServerManager:
 
     def load_servers_on_disk(self):
         
-        dirs = Path.iterdir(default_storage_path)
+        instances_dir = default_storage_path / "instances"
         
-        for dir in dirs:
+        if not instances_dir.exists() :
+            Path.mkdir(instances_dir, parents=True, exist_ok=True) 
+        
+        iter_dir = Path.iterdir(instances_dir)
+        
+        for dir in iter_dir:
             if Path.exists(dir/"config.json"): 
                 self.instances[dir.name] = MinecraftInstance(dir)
 
@@ -37,7 +44,7 @@ class MinecraftServerManager:
             while id in self.instances:
                 id = str(uuid.uuid4())
         
-        cwd = default_storage_path     
+        cwd = default_storage_path / "instances" 
         cwd = cwd / id
         Path.mkdir(cwd, parents=True)
         
