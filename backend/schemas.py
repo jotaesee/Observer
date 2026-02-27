@@ -7,7 +7,7 @@ class CreateServerRequest(BaseModel):
     mc_version : str = "1.15.2"
     server_type : str = "OFFICIAL"
     port : int = 25565
-    java_version : str
+    java_version : str = "java"
     id : str
     
 class ServerCommand(BaseModel):
