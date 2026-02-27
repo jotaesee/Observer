@@ -1,31 +1,40 @@
 <script>
   import { appState } from "../stores.svelte";
-  import Logo from './Logo.svelte';
-  import {Activity, User, Users, ChartArea, Settings, Database, SquareTerminal, FolderOpen, Power, Plus, HouseIcon } from 'lucide-svelte';
-  
+  import Logo from "./Logo.svelte";
+  import {
+    Activity,
+    User,
+    Users,
+    ChartArea,
+    Settings,
+    Database,
+    SquareTerminal,
+    FolderOpen,
+    Power,
+    Plus,
+    HouseIcon,
+  } from "lucide-svelte";
+
   let main_menu = [
-  { id: "instances", text: "Instances", icon : Database},
-  { id: "analytics", text: "Analytics", icon : ChartArea},
-  { id: "settings", text: "Settings", icon : Settings},
-  { id: "account", text: "Account", icon : User}
-  ]
+    { id: "instances", text: "Instances", icon: Database },
+    { id: "analytics", text: "Analytics", icon: ChartArea },
+    { id: "settings", text: "Settings", icon: Settings },
+    { id: "account", text: "Account", icon: User },
+  ];
 
   let instance_menu = [
-    { id: "dashboard", text: "Dashboard", icon : Activity},
-    { id: "console", text: "Console", icon : SquareTerminal},
-    { id: "players", text: "Players", icon : Users},
-    { id: "files", text: "Files", icon : FolderOpen},
-    { id: "settings", text: "Settings", icon : Settings}
-  ]
-
-
+    { id: "dashboard", text: "Dashboard", icon: Activity },
+    { id: "console", text: "Console", icon: SquareTerminal },
+    { id: "players", text: "Players", icon: Users },
+    { id: "files", text: "Files", icon: FolderOpen },
+    { id: "settings", text: "Settings", icon: Settings },
+  ];
 </script>
 
 <aside class="sidebar">
-
   <div class="sidebar-header">
     <div class="brand-container">
-      <div class = "logo">
+      <div class="logo">
         <Logo size={60} color="currentColor" />
       </div>
       <div class="title-text">
@@ -37,46 +46,63 @@
 
   <nav class="sidebar-nav">
     {#if appState.selected_server}
-      <button class="create-button" onclick={() => {appState.go_home()}}>
-      <div class = "icon">
-        <HouseIcon size={20}/>
-      </div>
-        <p>Home</p> 
+      <button
+        class="create-button"
+        onclick={() => {
+          appState.go_home();
+        }}
+      >
+        <div class="icon">
+          <HouseIcon size={20} />
+        </div>
+        <p>Home</p>
       </button>
     {:else}
-      <button class="create-button">
-      <div class = "icon">
-        <Plus size={20}/>
-      </div>
-        New Instance 
+      <button
+        class="create-button"
+        onclick={() => {
+          appState.toggle_Modal();
+        }}
+      >
+        <div class="icon">
+          <Plus size={20} />
+        </div>
+        New Instance
       </button>
     {/if}
 
     {#if appState.selected_server}
-        {#each instance_menu as item }
-        <button class = "menu-item"  onclick={() => appState.select_section(item.id)}  class:selected={appState.selected_section === item.id}>
-          <div class = "icon">
+      {#each instance_menu as item}
+        <button
+          class="menu-item"
+          onclick={() => appState.select_section(item.id)}
+          class:selected={appState.selected_section === item.id}
+        >
+          <div class="icon">
             <svelte:component this={item.icon} size={20}></svelte:component>
-          </div>  
-          <p>{item.text}</p>
-        </button>
-        {/each}    
-    {:else}
-        {#each main_menu as item }
-        <button class = "menu-item" onclick={() => appState.select_section(item.id)} class:selected={appState.selected_section === item.id}>
-          <div class = "icon">
-            <svelte:component this={item.icon} size={20}></svelte:component>  
           </div>
           <p>{item.text}</p>
         </button>
-        {/each}
+      {/each}
+    {:else}
+      {#each main_menu as item}
+        <button
+          class="menu-item"
+          onclick={() => appState.select_section(item.id)}
+          class:selected={appState.selected_section === item.id}
+        >
+          <div class="icon">
+            <svelte:component this={item.icon} size={20}></svelte:component>
+          </div>
+          <p>{item.text}</p>
+        </button>
+      {/each}
     {/if}
-
   </nav>
 
   <div class="sidebar-footer">
     <button class="logout-button">
-      <div class = "icon">
+      <div class="icon">
         <svelte:component this={Power} size={20}></svelte:component>
       </div>
       <p>Logout</p>
@@ -85,8 +111,8 @@
 </aside>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@500;700;900');
-  .sidebar-header{
+  @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@500;700;900");
+  .sidebar-header {
     margin-top: 30px;
     display: flex;
     justify-content: center;
@@ -99,8 +125,8 @@
     gap: 15px;
   }
 
-  .title-text{
-    font-family: 'Orbitron', sans-serif;
+  .title-text {
+    font-family: "Orbitron", sans-serif;
     font-size: 1.5rem;
     font-weight: 700;
     display: flex;
@@ -109,7 +135,7 @@
   }
 
   .title-text .subtitle {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: "JetBrains Mono", monospace;
     font-size: 0.6rem;
     color: #00ff66;
     letter-spacing: 2px;
@@ -117,20 +143,19 @@
   }
 
   .logo {
-        display: flex;
-        justify-content: center;
-        color: white; 
-        transition: color 0.3s ease;
-        width: min-content;
-        height: min-content;
-    }
+    display: flex;
+    justify-content: center;
+    color: white;
+    transition: color 0.3s ease;
+    width: min-content;
+    height: min-content;
+  }
 
-    .logo:hover {
-        color: #00ff66;
-    }
+  .logo:hover {
+    color: #00ff66;
+  }
 
-  button.create-button{
-
+  button.create-button {
     height: 60px;
     background: none;
     border: none;
@@ -146,16 +171,18 @@
     align-items: center;
     justify-content: center;
     margin: 5px;
-    transition: background-color 0.3s ease, transform 0.2s ease;
+    transition:
+      background-color 0.3s ease,
+      transform 0.2s ease;
   }
 
-  button.create-button:hover{
+  button.create-button:hover {
     color: #112b1b;
     background-color: #aaffcc;
     transform: translateY(-2px);
   }
 
-  button.logout-button{
+  button.logout-button {
     height: 5vh;
     background: none;
     border: none;
@@ -169,20 +196,22 @@
     align-items: center;
     justify-content: center;
     margin: 5px;
-    transition: background-color 0.3s ease, transform 0.2s ease;
+    transition:
+      background-color 0.3s ease,
+      transform 0.2s ease;
   }
 
-  button.logout-button:hover{
+  button.logout-button:hover {
     color: #cf8080;
     background-color: #571616;
     transform: translateY(-2px);
   }
 
-  .icon{
+  .icon {
     position: absolute;
     left: 15px;
     display: flex;
-    align-items: center; 
+    align-items: center;
     top: 50%;
     transform: translateY(-50%);
   }
@@ -207,7 +236,7 @@
     border: 1px solid #242424;
   }
 
-  .sidebar-footer{
+  .sidebar-footer {
     display: flex;
     justify-content: center;
   }
@@ -226,7 +255,9 @@
     align-items: center;
     justify-content: center;
     margin: 5px;
-    transition: background-color 0.3s ease, transform 0.2s ease;
+    transition:
+      background-color 0.3s ease,
+      transform 0.2s ease;
   }
 
   button.selected {
@@ -234,7 +265,7 @@
     background-color: #112b1b;
     display: flex;
     align-items: center;
-    justify-content:center;
+    justify-content: center;
     margin: 5px;
     border: 1px solid #0d5529;
     border-radius: 12px;
@@ -245,8 +276,8 @@
     color: #fff;
     background-color: #333333;
     transform: translateY(-2px);
-  } 
-  
+  }
+
   .sidebar-nav {
     flex-grow: 1;
     padding: 20px;
