@@ -7,6 +7,7 @@ from schemas import *
 import manager
 from exceptions import *
 import asyncio
+from services import get_available_versions
 ## this is just barebones, WIP.
 
 
@@ -106,8 +107,11 @@ async def real_time_console(websocket : WebSocket, server_id):
                 await websocket.close(400, f"something broke the websocket : {e}")
             except:
                 pass
-            break            
-
+            break     
+               
+@app.get("/versions") 
+async def get_versions():
+    return get_available_versions()
 
 @app.get("/servers")
 async def get_instances():

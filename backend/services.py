@@ -5,10 +5,60 @@ from exceptions import *
 import socket
 from abc import abstractmethod
 
-
+DEFAULT_STORAGE_PATH = Path.home() / "Server Manager"
 MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 PAPER_BASE_URL = "https://api.papermc.io/v2/projects/paper"
 BELL_JAVA_MANIFEST_URL = "https://api.bell-sw.com/v1/liberica/releases"
+
+def get_available_versions():
+    available_versions = {"OFFICIAL":[],"PAPER":[]}
+    if check_internet_connection() :
+        res = requests.get(MANIFEST_URL)
+        if res.ok:
+            data = res.json()
+            for version in data["versions"] :
+                if version["type"] == "release":
+                    available_versions["OFFICIAL"].append(version["id"])
+        res = requests.get(PAPER_BASE_URL)
+        if res.ok:
+            data = res.json()
+            for version in data["versions"]:
+                available_versions["PAPER"].append(version)
+        
+        available_versions["PAPER"].reverse()
+        return available_versions
+    else:
+        versions_dir = DEFAULT_STORAGE_PATH / "versions"
+        if not versions_dir.exists() :
+            return available_versions
+        
+        official_versions_path = versions_dir/"OFFICIAL"
+        
+        if official_versions_path.exists() :
+            iter_official_versions = Path.iterdir(official_versions_path)
+            for version in iter_official_versions:
+                available_versions["OFFICIAL"].append(version.name)
+        
+        paper_versions_path = versions_dir/"PAPER"
+        
+        if paper_versions_path.exists() :
+            iter_paper_versions = Path.iterdir(official_versions_path)
+            for version in iter_paper_versions:
+                available_versions["PAPER"].append(version.name)
+        
+        available_versions["OFFICIAL"].reverse()
+        available_versions["PAPER"].reverse()
+                        
+        return available_versions
+
+def check_internet_connection(url='http://www.google.com/', timeout=5):
+    try:
+        requests.head(url, timeout=timeout)
+        return True
+    except (Exception) as e:
+        print(e)
+        return False
+
 
 def is_port_free(port : int):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
