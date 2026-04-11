@@ -75,14 +75,18 @@
 
     <div class="modal-body form-grid">
       <div class="input-group full-width">
-        <!-- svelte-ignore a11y_label_has_associated_control -->
-        <label>Instance Name</label>
+        <div class="label-row">
+          <!-- svelte-ignore a11y_label_has_associated_control -->
+          <label>Instance Name</label>
+          <span class="char-counter">{form.id.length}/25</span>
+        </div>
         <div class="input-wrapper">
           <Server size={18} class="input-icon" />
           <input
             type="text"
             bind:value={form.id}
             placeholder="e.g. My Survival World"
+            maxlength="25"
           />
         </div>
       </div>
@@ -257,6 +261,18 @@
   .input-group label {
     font-size: 0.8rem;
     color: #aaa;
+  }
+
+  .label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .char-counter {
+    font-size: 0.7rem;
+    color: #666;
+    font-family: monospace;
   }
 
   .input-wrapper {
