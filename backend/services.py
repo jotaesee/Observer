@@ -197,9 +197,14 @@ class MojangProvider(VersionProvider):
             version_manifest.raise_for_status()
             version_manifest = version_manifest.json()
             
-            download_jar_url = version_manifest["downloads"]["server"]["url"]
-            jar_hash = version_manifest["downloads"]["server"]["sha1"]
-            jar_size = version_manifest["downloads"]["server"]["size"]
+            if mc_version in ["1.0", "1.1","1.2" ,"1.2.1","1.2.2","1.2.3","1.2.4"]:
+                download_jar_url = version_manifest["downloads"]["client"]["url"]
+                jar_hash = version_manifest["downloads"]["client"]["sha1"]
+                jar_size = version_manifest["downloads"]["client"]["size"]
+            else:
+                download_jar_url = version_manifest["downloads"]["server"]["url"]
+                jar_hash = version_manifest["downloads"]["server"]["sha1"]
+                jar_size = version_manifest["downloads"]["server"]["size"]
                 
             return download_jar_url, jar_hash, jar_size
         
@@ -369,36 +374,39 @@ class JavaManager():
         
     def download_java(self, mc_version, tries=0) :
         
+        print("estamos intentando descargar")
         with open(Path(self.java_storage_path / "versions_cache.json"), "r") as versions_file :
             cache : dict = json.load(versions_file)
         
         java_version = cache["versions"].get(mc_version)
+        print(java_version)
         url, given_hash, given_size = self.get_url(java_version)
-        
-        zip_filename = f"{java_version}_{self.system}_{self.architecture}.zip"  
-        zip_path = self.java_storage_path / zip_filename 
+        package_type = "tar.gz" if self.system == "linux" else "zip"
+
+        package_filename = f"{java_version}_{self.system}_{self.architecture}.{package_type}"  
+        package_path = self.java_storage_path / package_filename 
         
         try:
             print(f"[OBS] [SERVICES/downloader] Initiating Java download.. ")
             res = requests.get(url,stream=True)
             if res.ok:        
                 
-                with open(zip_path, 'wb') as zipfile:
+                with open(package_path, 'wb') as zipfile:
                     for chunk in res.iter_content(chunk_size=512*1024):
                         zipfile.write(chunk)            
                 
-            if self.verify_zipfile(zip_path, given_hash, given_size):
+            if self.verify_zipfile(package_path, given_hash, given_size):
                 
                 extract_folder = self.java_storage_path / f"{java_version}_{self.system}_{self.architecture}"
-                print(f"[OBS] [SERVICES/downloader] Java {java_version} .zip has been successfully downloaded at {extract_folder}! ")
-                return self.extract_java(zip_path, extract_folder, java_version)
+                print(f"[OBS] [SERVICES/downloader] Java {java_version} .{package_type} has been successfully downloaded at {extract_folder}! ")
+                return self.extract_java(package_path, extract_folder, java_version)
             
             else: raise DownloadCorruptedError()
     
         except (requests.RequestException, DownloadCorruptedError) as e:
         
-            if zip_path.exists(): 
-                zip_path.unlink()
+            if package_path.exists(): 
+                package_path.unlink()
 
             if tries < 3:
                 print("[OBS] [SERVICES/downloader] Java Download failed or corrupted. Trying again")
@@ -408,8 +416,9 @@ class JavaManager():
                 raise RetriesFailedError("All 3 attempts for downloading Java have failed.") 
 
     def get_url(self, java_version) :
-        
-        available_versions_url = f"{BELL_JAVA_MANIFEST_URL}/?version-feature={java_version}&os={self.system}&arch={self.architecture}&bitness=64&bundle-type=jre&package-type=zip"
+        package_type = "tar.gz" if self.system == "linux" else "zip"
+        available_versions_url = f"{BELL_JAVA_MANIFEST_URL}/?version-feature={java_version}&os={self.system}&arch={self.architecture}&bitness=64&bundle-type=jre&package-type={package_type}"
+        print(available_versions_url)
         try:
             res = requests.get(available_versions_url)
             if res.ok :
@@ -431,7 +440,7 @@ class JavaManager():
         
     def verify_zipfile(self, java_path : Path, given_hash, given_size):
         
-        print("[OBS] [SERVICES/verifier] Verifying Java .zip file...")
+        print("[OBS] [SERVICES/verifier] Verifying Java package...")
         
         real_size = java_path.stat().st_size
         aux = hashlib.sha1()
@@ -451,11 +460,12 @@ class JavaManager():
         return True
     
     
-    def extract_java(self, zip_path: Path, extract_folder: Path, java_version):
+    def extract_java(self, package_path: Path, extract_folder: Path, java_version):
         
-        print(f"[OBS] [SERVICES/extractor] Now extracting {zip_path.name}...")
-        shutil.unpack_archive(zip_path, extract_folder)
-        zip_path.unlink()
+        print(f"[OBS] [SERVICES/extractor] Now extracting {package_path.name}...")
+        package_type = "gztar" if self.system == "linux" else "zip"
+        shutil.unpack_archive(package_path, extract_folder, package_type)
+        package_path.unlink()
         
         java_exec_paths = list(extract_folder.rglob(self.java_exec))
         if not java_exec_paths:
