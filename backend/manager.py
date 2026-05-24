@@ -1,4 +1,4 @@
-import subprocess, threading, os, json, uuid, configparser, psutil
+import subprocess, threading, os, json, uuid, configparser, psutil, time
 from collections import deque
 from pathlib import Path
 from services import JarManager, JavaManager, is_port_free
@@ -90,8 +90,8 @@ class MinecraftInstance:
         self.cwd = Path(cwd)
         
         self.console_entries = deque(maxlen=200)
-        self.server : subprocess.Popen 
-        self.process : psutil.Process
+        self.server : subprocess.Popen = None
+        self.process : psutil.Process = None
         self.status = "OFFLINE"
         self.jar_file = ""
         pass
@@ -99,6 +99,7 @@ class MinecraftInstance:
     def start_server(self) :
     
         self.status = "STARTING"
+        self.console_entries.clear()
         print(f"[OBS] [STATUS] Server is currently : {self.status}")
         try: 
             if self.jar_file == "" :
@@ -145,7 +146,10 @@ class MinecraftInstance:
             config.read(properties)
         return config
     
-    
+    def get_icon(self):
+        path = self.cwd / "server-icon.png" 
+        if path.exists : return path
+        else: return None
                     
     def get_players(self):
         try:
@@ -177,7 +181,10 @@ class MinecraftInstance:
             return {"cpu_usage": 0, "ram_mb": 0}
         except Exception:
             return {"cpu_usage": 0, "ram_mb": 0}
-                
+    
+    def get_uptime(self):
+        uptime = time.time() - self.process.create_time()
+
     def to_dict(self):
         server_info = {
             "id" : self.id,

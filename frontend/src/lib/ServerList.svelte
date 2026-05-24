@@ -1,41 +1,44 @@
 <script>
   import { onMount } from "svelte";
+  import ServerCard from "./ServerCard.svelte";
+  import { API_BASE } from "./config";
+  import { appState } from '../stores.svelte';
 
+  let instances = $state();
+  let waiting_fetch = $state(true);
 
-    import ServerCard from "./ServerCard.svelte";
+  onMount(()=>{
+    get_servers()
+  })
 
-    let instances = $state();
-    let waiting_fetch = $state(true);
+  $effect(() => {
+    appState.refreshCounter;
+    get_servers();
+  });
 
-    onMount(()=>{
-        get_servers()
-    })
-
-    async function get_servers() {
-        try {
-            const res = await fetch("http://localhost:8000/servers", {method:"GET"});
-            instances = await res.json()
-        } catch (error) {
-         console.error("fetch just failed", error.message);   
-        }
-        finally {
-            waiting_fetch = false;
-        }
+  async function get_servers() {
+    try {
+      const res = await fetch(`${API_BASE}/servers`, {method:"GET"});
+      instances = await res.json()
+    } catch (error) {
+     console.error("fetch just failed", error.message);   
     }
+    finally {
+      waiting_fetch = false;
+    }
+  }
 
 </script>
 
 {#if waiting_fetch == false}
-    <div class = "card-grid">
+    <div class="card-grid">
     {#each instances as server (server.id) }
         <ServerCard {...server}/>
     {/each}
-</div>
+  </div>
 {:else}
-<p> waiting for fetch...</p>
+  <p> waiting for fetch...</p>
 {/if}
-
-
 
 <style>
 
@@ -51,4 +54,3 @@
 }
 
 </style>
-

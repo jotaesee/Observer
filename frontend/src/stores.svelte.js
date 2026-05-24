@@ -2,6 +2,8 @@ export const appState = $state({
   selected_server: null,
   selected_section: "instances",
   isNewInstanceModalOpen: false,
+  restartRequired: false,
+  refreshCounter: 0,
 
   select_server(id) {
     this.selected_server = id;
@@ -19,5 +21,13 @@ export const appState = $state({
 
   toggle_Modal() {
     this.isNewInstanceModalOpen = !this.isNewInstanceModalOpen;
+  },
+
+  dismissRestartNotice() {
+    this.restartRequired = false;
+  },
+
+  triggerRefresh() {
+    this.refreshCounter++;
   },
 });

@@ -1,8 +1,8 @@
 <script>
-  import { get } from "svelte/store";
   import { appState } from "../stores.svelte";
   import { X, Server, Network, FolderCode } from "lucide-svelte";
   import { onMount } from "svelte";
+  import { API_BASE } from "./config";
 
   let form = $state({
     id: "",
@@ -21,7 +21,7 @@
   });
 
   async function getVersions() {
-    const res = await fetch(`http://127.0.0.1:8000/versions`, {
+    const res = await fetch(`${API_BASE}/versions`, {
       method: "GET",
     });
 
@@ -43,7 +43,7 @@
 
     console.log("creating instance for:", requestBody);
 
-    const res = await fetch(`http://127.0.0.1:8000/servers/create`, {
+    const res = await fetch(`${API_BASE}/servers/create`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
@@ -51,6 +51,7 @@
 
     if (res.ok) {
       console.log("instance created successfully");
+      appState.triggerRefresh();
     }
 
     appState.toggle_Modal();

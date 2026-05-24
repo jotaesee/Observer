@@ -1,10 +1,11 @@
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
 from collections import deque
 from schemas import *
-import manager
+import manager, configparser
 from exceptions import *
 import asyncio
 from services import get_available_versions
@@ -31,9 +32,11 @@ async def online_players(websocket : WebSocket, server_id : str):
     try:
         instance = serverManager.get_instace_by_id(server_id)
     except InstanceNotFoundError as e: 
-        await websocket.close(404, "Server Instance not found.")
+        await websocket.close(1000, "Server Instance not found.")
+        return
     if not instance.server or instance.status == "OFFLINE" or instance.status == "CRASHED":
-        await websocket.close(404, "Server Instance not running.")
+        await websocket.close(1000, "Server Instance not running.")
+        return
     
     
     while True:
@@ -45,7 +48,8 @@ async def online_players(websocket : WebSocket, server_id : str):
             
             players = await run_in_threadpool(instance.get_players)
             resources = await run_in_threadpool(instance.get_resource_stats)
-            await websocket.send_json({"players": players, "resources" : resources, "status" : instance.status},)
+            uptime_seconds = await run_in_threadpool(instance.get_uptime)
+            await websocket.send_json({"players": players, "resources" : resources, "status" : instance.status, "uptime_seconds" : uptime_seconds},)
             
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
@@ -70,11 +74,11 @@ async def real_time_console(websocket : WebSocket, server_id):
     try:
         instance = serverManager.get_instace_by_id(server_id)
     except InstanceNotFoundError as e: 
-        await websocket.close(404, "Server Instance not found.")
-        
+        await websocket.close(1000, "Server Instance not found.")
+        return
     if not instance.server or instance.status == "OFFLINE":
-        await websocket.close(404, "Server Instance not online.")
-    
+        await websocket.close(1000, "Server Instance not online.")
+        return
     log_number_read = 0
     
     while True:
@@ -94,8 +98,8 @@ async def real_time_console(websocket : WebSocket, server_id):
                     await websocket.send_text(log)
                     
                         
-            if instance.status != "ONLINE" : 
-                await websocket.close(200, "server shutdown, closing connection.")
+            if instance.status in ["OFFLINE", "CRASHED"] : 
+                await websocket.close(1000, "server shutdown, closing connection.")
                 break
 
         except WebSocketDisconnect:
@@ -104,7 +108,7 @@ async def real_time_console(websocket : WebSocket, server_id):
         except Exception as e:
             print(f"something broke the websocket : {e}")
             try:
-                await websocket.close(400, f"something broke the websocket : {e}")
+                await websocket.close(1011, f"something broke the websocket : {e}")
             except:
                 pass
             break     
@@ -118,10 +122,10 @@ async def get_instances():
     all_instances = [instance.to_dict() for instance in serverManager.instances.values()]
     return all_instances
 
-@app.get("/online_servers")
-async def get_online_instances():
-    all_online_instances  = [instance.to_dict() for instance in serverManager.instances.values() if instance.status == "ONLINE"]
-    return all_online_instances    
+@app.get("/servers/{server_id}/status")
+async def get_server_status(server_id):
+    server_instance = serverManager.get_instace_by_id(server_id)    
+    return server_instance.status
 
 @app.get("/")
 async def root():
@@ -185,3 +189,58 @@ def create_server(request: CreateServerRequest):
         raise HTTPException(500, f"{e}")
     return {"msg": f"New server instance for version {request.mc_version} {request.server_type} has been created.", "id": new_server.id}
     
+
+@app.get("/servers/{server_id}/properties")
+def get_properties_by_id(server_id):
+    try:
+        instance = serverManager.get_instace_by_id(server_id)
+        config = instance.get_properties()
+        print(dict(config[configparser.UNNAMED_SECTION]))
+        return dict(config[configparser.UNNAMED_SECTION])
+    except InstanceNotFoundError as e: 
+        raise HTTPException(404, e)
+    
+@app.put("/servers/{server_id}/properties")
+def update_properties(server_id, new_config : dict):
+    try: 
+        instance = serverManager.get_instace_by_id(server_id)
+    except InstanceNotFoundError as e : 
+        raise HTTPException(404, e)
+    
+    current_config = instance.get_properties()
+    current_config[configparser.UNNAMED_SECTION].update(new_config)
+
+    path = instance.cwd / "server.properties"
+    with open(path, "w") as properties_file : 
+        current_config.write(properties_file)
+    
+    return {"msg" : "properties updated"}
+
+
+@app.get("/servers/{server_id}/icon")
+def get_server_icon(server_id) : 
+    try: 
+        instance = serverManager.get_instace_by_id(server_id)
+    except InstanceNotFoundError as e : 
+        raise HTTPException(404, e)
+    
+    icon = instance.get_icon()
+    if icon != None : return FileResponse(icon)
+    else: raise HTTPException(404, "No icon available.")
+
+@app.post("/servers/{server_id}/icon")
+async def upload_icon(server_id, icon : UploadFile = File(...)) : 
+    try: 
+        instance = serverManager.get_instace_by_id(server_id)
+    except InstanceNotFoundError as e : 
+        raise HTTPException(404, e)
+    
+    if not icon.content_type.startswith("image/"):
+        raise HTTPException(400, "File must be an image.")
+    
+    content = await icon.read()
+    path = instance.cwd / "server-icon.png"
+    with open(path, "wb") as image : 
+        image.write(content)
+    return {"msg": "Icon uploaded."}
+

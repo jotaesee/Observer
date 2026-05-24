@@ -2,10 +2,20 @@
     import { appState } from '../stores.svelte'; 
     import { onMount } from 'svelte';
     import { Users, Power, Settings} from 'lucide-svelte';
-
+    import { API_BASE, WS_BASE } from './config';
 
     let server = $props();
 
+    function parseRamMax(ramMax) {
+        const match = ramMax.match(/-Xmx(\d+)([MG])/);
+        if (!match) return 4096;
+        const val = parseInt(match[1]);
+        return match[2] === 'G' ? val * 1024 : val;
+    }
+
+    let maxRamMb = $derived(parseRamMax(server.ram_max));
+
+    // svelte-ignore state_referenced_locally
     let metrics = $state({
         cpu: 0,
         ram_mb: 0,
@@ -30,22 +40,17 @@
 
     async function toggle_server() {
         if (metrics.online == "ONLINE") {
-
             try {
-                const res = await fetch(`http://127.0.0.1:8000/servers/${server.id}/stop/`, {method:"POST"});
+                const res = await fetch(`${API_BASE}/servers/${server.id}/stop/`, {method:"POST"});
                 if (res.ok){
                     metrics.online = "CLOSING";
-                } else {
-                    metrics.online == true
                 }
             } catch (error) {
-                console.error("Error starting server:", error);
-                metrics.online == true
+                console.error("Error stopping server:", error);
             }
-          
         } else {
             try {
-                const res = await fetch(`http://127.0.0.1:8000/servers/${server.id}/start`, {method:"POST"});
+                const res = await fetch(`${API_BASE}/servers/${server.id}/start`, {method:"POST"});
                 if (res.ok){
                     metrics.online = "STARTING";
                     connect_websocket();
@@ -54,15 +59,11 @@
                 console.error("Error starting server:", error);
                 metrics.online = "OFFLINE"
             }
-        
         }
-        }
-
- 
+    }
 
     function connect_websocket() {
-        const protocol = window.location.protocol === "HTTPS" ? "wss:" : "ws:";
-        ws = new WebSocket(`${protocol}//127.0.0.1:8000/servers/${server.id}/metrics`);
+        ws = new WebSocket(`${WS_BASE}/servers/${server.id}/metrics`);
 
         ws.onopen = () => {
             metrics.online = "STARTING"
@@ -74,13 +75,11 @@
             metrics.ram_mb = data.resources.ram_mb || 0;
             metrics.players = data.players ? data.players.length : 0;
             if (metrics.online === "OFFLINE" || metrics.online === "CRASHED") {
-                console.log(`Server reported ${metrics.online}, closing WS from frontend.`);
                 ws.close(); 
             }
         };
 
         ws.onclose = () => {
-            console.log(`Connection lost for ${server.id}`);
             metrics.cpu = 0;
             metrics.ram_mb = 0;
             metrics.players = 0;
@@ -88,7 +87,6 @@
         };
 
         ws.onerror = () => {
-            console.log(`Connection lost for ${server.id}`);
             metrics.cpu = 0;
             metrics.ram_mb = 0;
             metrics.players = 0;
@@ -97,7 +95,6 @@
     }
 
     function getSegments(percentage) {
-        // devuelve un array de 10 booleanos para dibujar los cuadraditoss
         const activeCount = Math.round(percentage / 10);
         return Array(10).fill(false).map((_, i) => i < activeCount);
     }
@@ -143,11 +140,11 @@
         <div class="metric-row">
             <span class="metric-label">RAM</span>
             <div class="bar-container">
-                {#each getSegments((metrics.ram_mb / 4096) * 100) as active}
+                {#each getSegments((metrics.ram_mb / maxRamMb) * 100) as active}
                     <div class="segment" class:active={active}></div>
                 {/each}
             </div>
-            <span class="value-label">{(metrics.ram_mb / 1024).toFixed(1)} GB</span>
+            <span class="value-label">{(metrics.ram_mb / 1024).toFixed(1)} / {(maxRamMb / 1024).toFixed(0)} GB</span>
         </div>
 
     </div>
@@ -279,7 +276,7 @@
 
     
     .metric-label { color: #fff; width: 30px; }
-    .value-label { color: #fff; width: 50px; text-align: left; }
+    .value-label { color: #fff; width: 110px; text-align: left; }
     
     .card-footer {
         display: flex;

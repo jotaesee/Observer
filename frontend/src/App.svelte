@@ -1,17 +1,11 @@
 <script>
-  import { onMount } from "svelte";
   import Sidebar from "./lib/sidebar.svelte";
   import { appState } from "./stores.svelte";
   import ServerList from "./lib/ServerList.svelte";
   import NewServerModal from "./lib/newServerModal.svelte";
-
-  let servers = $state([]);
-
-  onMount(async () => {
-    const res = await fetch("http://127.0.0.1:8000/servers");
-    const data = await res.json();
-    servers = data;
-  });
+  import Console from "./lib/Console.svelte";
+  import Dashboard from "./lib/Dashboard.svelte";
+  import InstanceSettings from "./lib/InstanceSettings.svelte";
 </script>
 
 <div class="app-layout">
@@ -32,16 +26,18 @@
       {:else if appState.selected_section == "account"}
         <p>account</p>
       {/if}
-    {:else if appState.selected_section == "dashboard"}
-      <p>dashboard</p>
-    {:else if appState.selected_section == "console"}
-      <p>analytics</p>
-    {:else if appState.selected_section == "players"}
-      <p>players</p>
-    {:else if appState.selected_section == "files"}
-      <p>files</p>
-    {:else if appState.selected_section == "settings"}
-      <p>settings</p>
+    {:else}
+      {#if appState.selected_section == "dashboard"}
+        <Dashboard serverId={appState.selected_server} />
+      {:else if appState.selected_section == "console"}
+        <Console serverId={appState.selected_server} />
+      {:else if appState.selected_section == "players"}
+        <p>players</p>
+      {:else if appState.selected_section == "files"}
+        <p>files</p>
+      {:else if appState.selected_section == "settings"}
+        <InstanceSettings serverId={appState.selected_server} />
+      {/if}
     {/if}
   </main>
 </div>
